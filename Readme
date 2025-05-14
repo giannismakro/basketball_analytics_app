@@ -1,0 +1,91 @@
+# 🏀 Basketball Analytics with YOLOv8 + DeepSORT + Jersey OCR
+
+A computer vision-powered analytics tool that tracks basketball players in video footage, calculates their movement speed and distance, and identifies them using jersey number OCR.
+
+![demo](https://user-images.githubusercontent.com/your-demo-gif.gif) <!-- optional demo image or gif -->
+
+---
+
+## 📦 Technologies Used
+
+| Component      | Description                                                                 |
+|----------------|-----------------------------------------------------------------------------|
+| **YOLOv8 (Ultralytics)** | Real-time object detection to detect players on the court.                      |
+| **DeepSORT**    | Multi-object tracking for consistent tracking of detected players across frames. |
+| **Tesseract OCR** | Optical Character Recognition to identify jersey numbers for player ID.      |
+| **OpenCV**      | Frame-by-frame video processing and visualization.                          |
+| **Python**      | Main language powering the system.                                          |
+| **PyTorch**     | Used under the hood by YOLO for model inference.                            |
+
+---
+
+## ⚙️ Features
+
+- ✅ Detects and tracks players in full games using video footage.
+- ✅ Computes real-time player **speed** and **distance traveled**.
+- ✅ Extracts and overlays **jersey numbers** to assign consistent player IDs.
+- ✅ Supports both **live camera feeds** and **pre-recorded footage**.
+- ✅ Bounding box visualization with optional smoothing and label shrinking.
+
+---
+
+## 🖥️ Setup Instructions
+
+### 1. Clone the Repo
+```bash
+git clone https://github.com/your-username/basketball-analytics
+cd basketball-analytics
+
+### 2. Create Virtual Environment
+
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+### 3. Install Requirements
+
+pip install -r requirements.txt
+Make sure you also install Tesseract OCR and add it to your system PATH.
+
+### 4. Add YOLOv8 Model
+Download YOLOv8n weights from Ultralytics and place in models/:
+
+mkdir models
+# Example with YOLOv8n
+wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt -P models/
+5. Run the App
+Place your video in input/ and run:
+
+python main.py
+Press Q to quit the video window.
+
+📂 Project Structure
+
+.
+├── input/                  # Input videos
+├── models/                # YOLOv8 weights
+├── deep_sort/             # DeepSORT tracker code
+├── utils.py               # Speed/distance calculations, drawing
+├── yolov8.py              # YOLO detection wrapper
+├── main.py                # Main app logic
+├── requirements.txt
+└── README.md
+
+🚀 Next Steps (Planned)
+Heatmap generation for player movement
+
+Zone-based analytics (offense/defense)
+
+Real-time UI dashboard
+
+Action recognition (pass, dribble, shot)
+
+📋 License
+MIT License — feel free to use and adapt this project for your needs.
+
+🙌 Acknowledgements
+Ultralytics YOLOv8
+DeepSORT Realtime
+Tesseract OCR
+
+💬 Contact
+Questions, feedback, or contributions welcome!
+Open an issue or connect on LinkedIn

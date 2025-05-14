@@ -1,0 +1,6 @@
+ultralytics==8.0.20  # YOLOv8
+opencv-python
+numpy
+torch
+scikit-learn
+deep_sort_realtime
