@@ -1,8 +1,9 @@
-import cv2
-from yolov8 import YOLODetector
-from deep_sort.tracker import DeepSORTTracker
-from utils import compute_speed
+import os
+import argparse
+from court_keypoint_detector import CourtKeypointDetector
+from utils import read_video, save_video
 import torch.serialization
+from trackers import PlayerTracker, BallTracker
 from torch.nn.modules.container import Sequential, ModuleList
 from ultralytics.nn.modules import Conv, C2f, Bottleneck, SPPF, Concat, Detect, DFL
 from torch.nn.modules.conv import Conv2d
@@ -10,11 +11,40 @@ from torch.nn.modules.batchnorm import BatchNorm2d
 from torch.nn.modules.activation import SiLU
 from torch.nn.modules.pooling import MaxPool2d
 from torch.nn.modules.upsampling import Upsample
+from team_assigner import TeamAssigner
+from ball_aquisition import BallAquisitionDetector
+from pass_and_interception_detector import PassAndInterceptionDetector
+from tactical_view_converter import TacticalViewConverter
+from speed_and_distance_calculator import SpeedAndDistanceCalculator
 from ultralytics.nn.tasks import DetectionModel
+from drawers import (
+    PlayerTracksDrawer,
+    BallTracksDrawer,
+    CourtKeypointDrawer,
+    TeamBallControlDrawer,
+    FrameNumberDrawer,
+    PassInterceptionDrawer,
+    TacticalViewDrawer,
+    SpeedAndDistanceDrawer
+)
 
-# --- Video Setup ---
-video_path = "input/sample_game.mp4"
-cap = cv2.VideoCapture(video_path)
+from configs import(
+    STUBS_DEFAULT_PATH,
+    PLAYER_DETECTOR_PATH,
+    BALL_DETECTOR_PATH,
+    COURT_KEYPOINT_DETECTOR_PATH,
+    OUTPUT_VIDEO_PATH
+)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Basketball Video Analysis')
+    parser.add_argument('input_video', type=str, help='Path to input video file')
+    parser.add_argument('--output_video', type=str, default=OUTPUT_VIDEO_PATH,
+                        help='Path to output video file')
+    parser.add_argument('--stub_path', type=str, default=STUBS_DEFAULT_PATH,
+                        help='Path to stub directory')
+    return parser.parse_args()
+
 
 torch.serialization.add_safe_globals([
     DetectionModel,
@@ -34,82 +64,149 @@ torch.serialization.add_safe_globals([
     SPPF
 ])
 
-detector = YOLODetector()
-tracker = DeepSORTTracker()
 
-fps = cap.get(cv2.CAP_PROP_FPS)
-total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+def main():
+    print("Basketball Video Analysis")
+    args = parse_args()
 
-positions = {}
+    # Read Video
+    video_frames = read_video(args.input_video)
 
-# --- Create OpenCV window with trackbar ---
-cv2.namedWindow("Basketball Analytics")
-cv2.createTrackbar("Frame", "Basketball Analytics", 0, total_frames - 1, lambda x: None)
+    print(f"Number of frames: {len(video_frames)}")
+    ## Initialize Tracker
+    player_tracker = PlayerTracker(PLAYER_DETECTOR_PATH)
+    ball_tracker = BallTracker(BALL_DETECTOR_PATH)
 
-last_slider_pos = 0
+    ## Initialize Keypoint Detector
+    court_keypoint_detector = CourtKeypointDetector(COURT_KEYPOINT_DETECTOR_PATH)
 
-while True:
-    # Handle seeking
-    slider_pos = cv2.getTrackbarPos("Frame", "Basketball Analytics")
-    if abs(slider_pos - last_slider_pos) > 1:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, slider_pos)
-        last_slider_pos = slider_pos
+    # Run Detectors
+    print("Player Tracker")
+    player_tracks = player_tracker.get_object_tracks(video_frames,
+                                                     read_from_stub=True,
+                                                     stub_path=os.path.join(args.stub_path, 'player_track_stubs.pkl')
+                                                     )
 
-    ret, frame = cap.read()
-    if not ret:
-        break
+    print("Ball tracker ")
+    ball_tracks = ball_tracker.get_object_tracks(video_frames,
+                                                 read_from_stub=True,
+                                                 stub_path=os.path.join(args.stub_path, 'ball_track_stubs.pkl')
+                                                 )
 
-    detections = detector.detect(frame)
-    tracks = tracker.update_tracks(detections, frame)
-    h, w, _ = frame.shape
+    ## Run KeyPoint Extractor
+    court_keypoints_per_frame = court_keypoint_detector.get_court_keypoints(video_frames,
+                                                                    read_from_stub=True,
+                                                                    stub_path=os.path.join(args.stub_path, 'court_key_points_stub.pkl')
+                                                                    )
 
-    for track in tracks:
+    # Remove Wrong Ball Detections
+    ball_tracks = ball_tracker.remove_wrong_detections(ball_tracks)
+    # Interpolate Ball Tracks
+    ball_tracks = ball_tracker.interpolate_ball_positions(ball_tracks)
 
-        l, t, r, b = track.to_ltrb()
+    ## Draw object Tracks
+    player_tracks_drawer = PlayerTracksDrawer()
 
-        # Clip to image size
-        l = max(0, min(int(l), w - 1))
-        r = max(0, min(int(r), w - 1))
-        t = max(0, min(int(t), h - 1))
-        b = max(0, min(int(b), h - 1))
 
-        # Optional shrink
-        bbox_w = r - l
-        bbox_h = b - t
-        shrink = 0.1
-        l += int(bbox_w * shrink / 2)
-        r -= int(bbox_w * shrink / 2)
-        t += int(bbox_h * shrink / 2)
-        b -= int(bbox_h * shrink / 2)
+    # Assign Player Teams
+    team_assigner = TeamAssigner()
+    player_assignment = team_assigner.get_player_teams_across_frames(video_frames,
+                                                                    player_tracks,
+                                                                    read_from_stub=True,
+                                                                    stub_path=os.path.join(args.stub_path, 'player_assignment_stub.pkl')
+                                                                    )
 
-        x = (l + r) / 2
-        y = (t + b) / 2
 
-        # Draw box and label
-        print(track.track_id)
-        if track.track_id == "4":
-            cv2.rectangle(frame, (l, t), (r, b), (0, 255, 0), 2)
-            cv2.putText(frame, f'ID:{track.track_id}', (l, t - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    # Ball Acquisition
+    print("Ball acquisition")
+    ball_aquisition_detector = BallAquisitionDetector()
+    ball_aquisition = ball_aquisition_detector.detect_ball_possession(player_tracks,ball_tracks)
 
-        # Speed and distance calculations
-        if track.track_id in positions:
-            last_pos, last_frame = positions[track.track_id]
-            speed = compute_speed(last_pos, (x, y), 1 / fps)
-            distance = compute_speed((0, 0), (x - last_pos[0], y - last_pos[1]), 1)
-        else:
-            speed = 0
-            distance = 0
 
-        positions[track.track_id] = ((x, y), cap.get(cv2.CAP_PROP_POS_FRAMES))
+    # Detect Passes
+    pass_and_interception_detector = PassAndInterceptionDetector()
+    passes = pass_and_interception_detector.detect_passes(ball_aquisition,player_assignment)
+    interceptions = pass_and_interception_detector.detect_interceptions(ball_aquisition,player_assignment)
 
-    # Update slider to match current frame
-    current_frame = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-    cv2.setTrackbarPos("Frame", "Basketball Analytics", current_frame)
+    # Detect Passes
+    # Tactical View
+    tactical_view_converter = TacticalViewConverter(
+        court_image_path="./images/basketball_court.png"
+    )
 
-    cv2.imshow("Basketball Analytics", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    court_keypoints_per_frame = tactical_view_converter.validate_keypoints(court_keypoints_per_frame)
+    tactical_player_positions = tactical_view_converter.transform_players_to_tactical_view(court_keypoints_per_frame,player_tracks)
 
-cap.release()
-cv2.destroyAllWindows()
+    # Speed and Distance Calculator
+    speed_and_distance_calculator = SpeedAndDistanceCalculator(
+        tactical_view_converter.width,
+        tactical_view_converter.height,
+        tactical_view_converter.actual_width_in_meters,
+        tactical_view_converter.actual_height_in_meters
+    )
+    player_distances_per_frame = speed_and_distance_calculator.calculate_distance(tactical_player_positions)
+    player_speed_per_frame = speed_and_distance_calculator.calculate_speed(player_distances_per_frame)
+    output_video_frames = player_tracks_drawer.draw(video_frames,
+                                                    player_tracks,
+                                                    player_assignment,
+                                                    ball_aquisition)
+
+    # Draw output
+    # Initialize Drawers
+    player_tracks_drawer = PlayerTracksDrawer()
+    ball_tracks_drawer = BallTracksDrawer()
+    court_keypoint_drawer = CourtKeypointDrawer()
+    team_ball_control_drawer = TeamBallControlDrawer()
+    frame_number_drawer = FrameNumberDrawer()
+    pass_and_interceptions_drawer = PassInterceptionDrawer()
+    tactical_view_drawer = TacticalViewDrawer()
+    speed_and_distance_drawer = SpeedAndDistanceDrawer()
+
+    ## Draw object Tracks
+    output_video_frames = player_tracks_drawer.draw(video_frames,
+                                                    player_tracks,
+                                                    player_assignment,
+                                                    ball_aquisition)
+    output_video_frames = ball_tracks_drawer.draw(output_video_frames, ball_tracks)
+
+    ## Draw KeyPoints
+    output_video_frames = court_keypoint_drawer.draw(output_video_frames, court_keypoints_per_frame)
+
+    ## Draw Frame Number
+    output_video_frames = frame_number_drawer.draw(output_video_frames)
+
+    # Draw Team Ball Control
+    output_video_frames = team_ball_control_drawer.draw(output_video_frames,
+                                                        player_assignment,
+                                                        ball_aquisition)
+
+    # Draw Passes and Interceptions
+    output_video_frames = pass_and_interceptions_drawer.draw(output_video_frames,
+                                                             passes,
+                                                             interceptions)
+
+    # Speed and Distance Drawer
+    output_video_frames = speed_and_distance_drawer.draw(output_video_frames,
+                                                         player_tracks,
+                                                         player_distances_per_frame,
+                                                         player_speed_per_frame
+                                                         )
+
+    ## Draw Tactical View
+    output_video_frames = tactical_view_drawer.draw(output_video_frames,
+                                                    tactical_view_converter.court_image_path,
+                                                    tactical_view_converter.width,
+                                                    tactical_view_converter.height,
+                                                    tactical_view_converter.key_points,
+                                                    tactical_player_positions,
+                                                    player_assignment,
+                                                    ball_aquisition,
+                                                    )
+
+    # Save video
+    print("Saving video file")
+    save_video(output_video_frames, args.output_video)
+
+
+if __name__ == '__main__':
+    main()

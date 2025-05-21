@@ -1,6 +1,8 @@
-ultralytics==8.0.20  # YOLOv8
+ultralytics
 opencv-python
 numpy
 torch
 scikit-learn
 deep_sort_realtime
+supervision
+transformers

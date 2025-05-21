@@ -1,1 +1,6 @@
 input/
+.idea/*
+.venv/
+__pychache__/*
+**/__pycache__/
+models/*.pt
