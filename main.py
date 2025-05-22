@@ -70,32 +70,31 @@ def main():
     args = parse_args()
 
     # Read Video
+    print(f"Input video {args.input_video}")
     video_frames = read_video(args.input_video)
-
     print(f"Number of frames: {len(video_frames)}")
     ## Initialize Tracker
-    player_tracker = PlayerTracker(PLAYER_DETECTOR_PATH)
-    ball_tracker = BallTracker(BALL_DETECTOR_PATH)
 
     ## Initialize Keypoint Detector
     court_keypoint_detector = CourtKeypointDetector(COURT_KEYPOINT_DETECTOR_PATH)
 
     # Run Detectors
     print("Player Tracker")
-    player_tracks = player_tracker.get_object_tracks(video_frames,
-                                                     read_from_stub=True,
-                                                     stub_path=os.path.join(args.stub_path, 'player_track_stubs.pkl')
-                                                     )
+    player_tracks = PlayerTracker(PLAYER_DETECTOR_PATH).get_player_objects(video_frames,
+                                                      read_from_stub=False,
+                                                      stub_path=os.path.join(args.stub_path, 'player_track_stubs.pkl')
+                                                      )
 
     print("Ball tracker ")
+    ball_tracker = BallTracker(BALL_DETECTOR_PATH)
     ball_tracks = ball_tracker.get_object_tracks(video_frames,
-                                                 read_from_stub=True,
+                                                 read_from_stub=False,
                                                  stub_path=os.path.join(args.stub_path, 'ball_track_stubs.pkl')
                                                  )
 
     ## Run KeyPoint Extractor
     court_keypoints_per_frame = court_keypoint_detector.get_court_keypoints(video_frames,
-                                                                    read_from_stub=True,
+                                                                    read_from_stub=False,
                                                                     stub_path=os.path.join(args.stub_path, 'court_key_points_stub.pkl')
                                                                     )
 
@@ -112,7 +111,7 @@ def main():
     team_assigner = TeamAssigner()
     player_assignment = team_assigner.get_player_teams_across_frames(video_frames,
                                                                     player_tracks,
-                                                                    read_from_stub=True,
+                                                                    read_from_stub=False,
                                                                     stub_path=os.path.join(args.stub_path, 'player_assignment_stub.pkl')
                                                                     )
 
@@ -204,7 +203,7 @@ def main():
                                                     )
 
     # Save video
-    print("Saving video file")
+    print(f"Saving video file {args.output_video}")
     save_video(output_video_frames, args.output_video)
 
 

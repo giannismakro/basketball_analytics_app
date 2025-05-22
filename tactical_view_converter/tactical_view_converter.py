@@ -160,8 +160,8 @@ class TacticalViewConverter:
                 homography = Homography(source_points, target_points)
                 
                 # Transform each player's position
-                for player_id, player_data in frame_tracks.items():
-                    bbox = player_data["bbox"]
+                for player_id, player_obj in frame_tracks.items():
+                    bbox = player_obj.bbox
                     # Use bottom center of bounding box as player position
                     player_position = np.array([get_foot_position(bbox)])
                     # Transform to tactical view coordinates

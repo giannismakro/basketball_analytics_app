@@ -51,6 +51,7 @@ def draw_ellipse(frame,bbox,color,track_id=None):
     """
     y2 = int(bbox[3])
     x_center, _ = get_center_of_bbox(bbox)
+    print("x_center", x_center)
     width = get_bbox_width(bbox)
 
     cv2.ellipse(

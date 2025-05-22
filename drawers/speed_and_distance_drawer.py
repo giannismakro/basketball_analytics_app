@@ -17,8 +17,8 @@ class SpeedAndDistanceDrawer():
                 total_distances[player_id]+=distance
 
             
-            for player_id,bbox in player_tracks.items():
-                x1,y1,x2,y2 = bbox['bbox']
+            for player_id,player in player_tracks.items():
+                x1,y1,x2,y2 = player.bbox
                 position = [int((x1+x2)/2),int(y2)]
                 position[1]+=40
 

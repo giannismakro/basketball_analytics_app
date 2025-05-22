@@ -139,8 +139,8 @@ class BallAquisitionDetector:
         high_containment_players = []
         regular_distance_players = []
         
-        for player_id, player_info in player_tracks_frame.items():
-            player_bbox = player_info.get('bbox', [])
+        for player_id, player_obj in player_tracks_frame.items():
+            player_bbox = player_obj.bbox
             if not player_bbox:
                 continue
                 

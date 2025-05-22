@@ -126,10 +126,10 @@ class TeamAssigner:
             if frame_num %50 ==0:
                 self.player_team_dict = {}
 
-            for player_id, track in player_track.items():
-                team = self.get_player_team(video_frames[frame_num],   
-                                                    track['bbox'],
-                                                    player_id)
+            for player_id, player_obj in player_track.items():
+                team = self.get_player_team(video_frames[frame_num],
+                                            player_obj.bbox,
+                                            player_id)
                 player_assignment[frame_num][player_id] = team
         
         save_stub(stub_path,player_assignment)
