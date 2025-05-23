@@ -11,7 +11,21 @@ import sys
 sys.path.append('../')
 from utils import get_center_of_bbox, get_bbox_width, get_foot_position
 
-def draw_traingle(frame,bbox,color):
+def check_for_shot(ball, basket, ball_went_upward: bool):
+    if basket.is_collision(ball.bbox):
+        scorer = ball.last_owner
+        if not scorer:
+            return
+
+        scorer.stats.record_shot(made=not ball_went_upward)
+        scorer.team.update_score(2 if not ball_went_upward else 0)
+
+        # Reset for next play
+        for player in scorer.team.players:
+            player.reset_ball_status()
+
+
+def draw_triangle(frame, bbox, color):
     """
     Draws a filled triangle on the given frame at the specified bounding box location.
 

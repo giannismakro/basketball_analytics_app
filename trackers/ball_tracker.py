@@ -80,7 +80,9 @@ class BallTracker:
                 tracks[frame_num][1] = {"bbox":chosen_bbox}
 
         save_stub(stub_path,tracks)
-        
+        ball_tracks = self.remove_wrong_detections(tracks)
+        # Interpolate Ball Tracks
+        tracks = self.interpolate_ball_positions(ball_tracks)
         return tracks
 
     def remove_wrong_detections(self,ball_positions):

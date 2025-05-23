@@ -33,6 +33,11 @@ class PlayerStats:
         if is_three:
             self.three_pointers_attempted += 1
 
+    def shooting_percentage(self):
+        if self.shots_attempted == 0:
+            return 0
+        return self.shots_made / self.shots_attempted
+
     def record_assist(self):
         self.assists += 1
 

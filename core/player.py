@@ -10,6 +10,13 @@ class Player:
         self.bbox = None
         self.location_history = []  # (frame_id, x, y)
         self.stats = PlayerStats()
+        self.has_ball_last = False
+
+    def reset_ball_status(self):
+        self.has_ball_last = False
+
+    def set_has_ball(self):
+        self.has_ball_last = True
 
     def update_position(self, x, y, frame_id):
         self.location_history.append((frame_id, x, y))

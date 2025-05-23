@@ -1,6 +1,7 @@
 import os
 import argparse
 from court_keypoint_detector import CourtKeypointDetector
+from trackers.basket_tracker import HoopTracker
 from utils import read_video, save_video
 import torch.serialization
 from trackers import PlayerTracker, BallTracker
@@ -17,6 +18,7 @@ from pass_and_interception_detector import PassAndInterceptionDetector
 from tactical_view_converter import TacticalViewConverter
 from speed_and_distance_calculator import SpeedAndDistanceCalculator
 from ultralytics.nn.tasks import DetectionModel
+from core.team import Team
 from drawers import (
     PlayerTracksDrawer,
     BallTracksDrawer,
@@ -30,6 +32,7 @@ from drawers import (
 
 from configs import(
     STUBS_DEFAULT_PATH,
+    HOOP_DETECTOR_PATH,
     PLAYER_DETECTOR_PATH,
     BALL_DETECTOR_PATH,
     COURT_KEYPOINT_DETECTOR_PATH,
@@ -76,18 +79,23 @@ def main():
     ## Initialize Tracker
 
     ## Initialize Keypoint Detector
+    team1 = Team("name1", "white shirt")
+    team2 = Team("name2", "blue shirt")
+
     court_keypoint_detector = CourtKeypointDetector(COURT_KEYPOINT_DETECTOR_PATH)
 
     # Run Detectors
-    print("Player Tracker")
+    print("Running Trackers")
     player_tracks = PlayerTracker(PLAYER_DETECTOR_PATH).get_player_objects(video_frames,
                                                       read_from_stub=False,
                                                       stub_path=os.path.join(args.stub_path, 'player_track_stubs.pkl')
                                                       )
+    basket_tracks = HoopTracker(HOOP_DETECTOR_PATH).get_tracks(video_frames,
+                                                               read_from_stub=False,
+                                                               stub_path=os.path.join(args.stub_path, 'basket_track_stubs.pkl')
+                                                               )
 
-    print("Ball tracker ")
-    ball_tracker = BallTracker(BALL_DETECTOR_PATH)
-    ball_tracks = ball_tracker.get_object_tracks(video_frames,
+    ball_tracks = BallTracker(BALL_DETECTOR_PATH).get_object_tracks(video_frames,
                                                  read_from_stub=False,
                                                  stub_path=os.path.join(args.stub_path, 'ball_track_stubs.pkl')
                                                  )
@@ -99,9 +107,10 @@ def main():
                                                                     )
 
     # Remove Wrong Ball Detections
-    ball_tracks = ball_tracker.remove_wrong_detections(ball_tracks)
-    # Interpolate Ball Tracks
-    ball_tracks = ball_tracker.interpolate_ball_positions(ball_tracks)
+
+    #update_players_ball_status(players, ball)
+
+
 
     ## Draw object Tracks
     player_tracks_drawer = PlayerTracksDrawer()
