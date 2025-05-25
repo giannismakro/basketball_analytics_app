@@ -18,7 +18,7 @@ def save_stub(stub_path,object):
         stub_path (str): File path where the object should be saved.
         object: Any Python object that can be pickled.
     """
-    if not os.path.exists(os.path.dirname(stub_path)):
+    if stub_path and not os.path.exists(os.path.dirname(stub_path)):
         os.makedirs(os.path.dirname(stub_path))
 
     if stub_path is not None:

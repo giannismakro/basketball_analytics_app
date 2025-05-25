@@ -98,40 +98,44 @@ class TeamAssigner:
         self.player_team_dict[player_id] = team_id
         return team_id
 
-    def get_player_teams_across_frames(self,video_frames,player_tracks,read_from_stub=False, stub_path=None):
+    def get_player_teams_across_frames(self, video_frames, players, read_from_stub=False, stub_path=None):
         """
         Processes all video frames to assign teams to players, with optional caching.
 
         Args:
             video_frames (list): List of video frames to process.
-            player_tracks (list): List of player tracking information for each frame.
+            players (dict): Dict of Player objects keyed by player ID.
             read_from_stub (bool): Whether to attempt reading cached results.
             stub_path (str): Path to the cache file.
 
         Returns:
             list: List of dictionaries mapping player IDs to team assignments for each frame.
         """
-        
-        player_assignment = read_stub(read_from_stub,stub_path)
+
+        player_assignment = read_stub(read_from_stub, stub_path)
         if player_assignment is not None:
             if len(player_assignment) == len(video_frames):
                 return player_assignment
 
         self.load_model()
 
-        player_assignment=[]
-        for frame_num, player_track in enumerate(player_tracks):        
+        player_assignment = []
+
+        for frame_num, frame in enumerate(video_frames):
             player_assignment.append({})
-            
-            if frame_num %50 ==0:
+
+            if frame_num % 50 == 0:
                 self.player_team_dict = {}
 
-            for player_id, player_obj in player_track.items():
-                team = self.get_player_team(video_frames[frame_num],
-                                            player_obj.bbox,
-                                            player_id)
+            for player_id, player_obj in players.items():
+                if frame_num not in player_obj.bboxs_per_frame:
+                    continue
+
+                bbox = player_obj.bboxs_per_frame[frame_num]
+
+                team = self.get_player_team(frame, bbox, player_id)
                 player_assignment[frame_num][player_id] = team
-        
-        save_stub(stub_path,player_assignment)
+
+        save_stub(stub_path, player_assignment)
 
         return player_assignment

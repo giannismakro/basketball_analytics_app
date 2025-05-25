@@ -1,8 +1,8 @@
 import os
 import argparse
 from court_keypoint_detector import CourtKeypointDetector
-from trackers.basket_tracker import HoopTracker
-from utils import read_video, save_video
+from trackers.hoop_tracker import HoopTracker
+from utils.video_utils import read_video, save_video, check_for_shots
 import torch.serialization
 from trackers import PlayerTracker, BallTracker
 from torch.nn.modules.container import Sequential, ModuleList
@@ -27,7 +27,8 @@ from drawers import (
     FrameNumberDrawer,
     PassInterceptionDrawer,
     TacticalViewDrawer,
-    SpeedAndDistanceDrawer
+    SpeedAndDistanceDrawer,
+    HoopTracksDrawer
 )
 
 from configs import(
@@ -78,63 +79,41 @@ def main():
     print(f"Number of frames: {len(video_frames)}")
     ## Initialize Tracker
 
-    ## Initialize Keypoint Detector
     team1 = Team("name1", "white shirt")
     team2 = Team("name2", "blue shirt")
 
-    court_keypoint_detector = CourtKeypointDetector(COURT_KEYPOINT_DETECTOR_PATH)
-
-    # Run Detectors
+    ## Initialize Keypoint Detector
+    # We have different models hence why we predict lot of times
+    # each model is speciliazed for different task
     print("Running Trackers")
-    player_tracks = PlayerTracker(PLAYER_DETECTOR_PATH).get_player_objects(video_frames,
-                                                      read_from_stub=False,
-                                                      stub_path=os.path.join(args.stub_path, 'player_track_stubs.pkl')
-                                                      )
-    basket_tracks = HoopTracker(HOOP_DETECTOR_PATH).get_tracks(video_frames,
-                                                               read_from_stub=False,
-                                                               stub_path=os.path.join(args.stub_path, 'basket_track_stubs.pkl')
-                                                               )
-
-    ball_tracks = BallTracker(BALL_DETECTOR_PATH).get_object_tracks(video_frames,
-                                                 read_from_stub=False,
-                                                 stub_path=os.path.join(args.stub_path, 'ball_track_stubs.pkl')
-                                                 )
-
-    ## Run KeyPoint Extractor
-    court_keypoints_per_frame = court_keypoint_detector.get_court_keypoints(video_frames,
-                                                                    read_from_stub=False,
-                                                                    stub_path=os.path.join(args.stub_path, 'court_key_points_stub.pkl')
-                                                                    )
-
-    # Remove Wrong Ball Detections
-
-    #update_players_ball_status(players, ball)
+    court_keypoint_detector = CourtKeypointDetector(COURT_KEYPOINT_DETECTOR_PATH)
+    # Run Detectors to get Player, Ball and Hoop Tracks lists for each frame
+    players = PlayerTracker(PLAYER_DETECTOR_PATH).get_player_objects(video_frames)
+    baskets = HoopTracker(HOOP_DETECTOR_PATH).get_tracks(video_frames)
+    ball_object = BallTracker(BALL_DETECTOR_PATH).get_object_tracks(video_frames)
+    court_keypoints_tracks = court_keypoint_detector.get_court_keypoints(video_frames)
 
 
 
     ## Draw object Tracks
     player_tracks_drawer = PlayerTracksDrawer()
-
-
     # Assign Player Teams
     team_assigner = TeamAssigner()
     player_assignment = team_assigner.get_player_teams_across_frames(video_frames,
-                                                                    player_tracks,
+                                                                    players,
                                                                     read_from_stub=False,
                                                                     stub_path=os.path.join(args.stub_path, 'player_assignment_stub.pkl')
                                                                     )
 
-
     # Ball Acquisition
     print("Ball acquisition")
-    ball_aquisition_detector = BallAquisitionDetector()
-    ball_aquisition = ball_aquisition_detector.detect_ball_possession(player_tracks,ball_tracks)
+    ball_acquisition = BallAquisitionDetector().detect_ball_possession(players, ball_object)
 
 
     # Detect Passes
     pass_and_interception_detector = PassAndInterceptionDetector()
-    passes = pass_and_interception_detector.detect_passes(ball_aquisition,player_assignment)
-    interceptions = pass_and_interception_detector.detect_interceptions(ball_aquisition,player_assignment)
+    passes = pass_and_interception_detector.detect_passes(ball_acquisition,player_assignment)
+    interceptions = pass_and_interception_detector.detect_interceptions(ball_acquisition,player_assignment)
 
     # Detect Passes
     # Tactical View
@@ -142,9 +121,8 @@ def main():
         court_image_path="./images/basketball_court.png"
     )
 
-    court_keypoints_per_frame = tactical_view_converter.validate_keypoints(court_keypoints_per_frame)
-    tactical_player_positions = tactical_view_converter.transform_players_to_tactical_view(court_keypoints_per_frame,player_tracks)
-
+    court_keypoints_tracks = tactical_view_converter.validate_keypoints(court_keypoints_tracks)
+    tactical_player_positions = tactical_view_converter.transform_players_to_tactical_view(court_keypoints_tracks, players)
     # Speed and Distance Calculator
     speed_and_distance_calculator = SpeedAndDistanceCalculator(
         tactical_view_converter.width,
@@ -155,9 +133,9 @@ def main():
     player_distances_per_frame = speed_and_distance_calculator.calculate_distance(tactical_player_positions)
     player_speed_per_frame = speed_and_distance_calculator.calculate_speed(player_distances_per_frame)
     output_video_frames = player_tracks_drawer.draw(video_frames,
-                                                    player_tracks,
+                                                    players,
                                                     player_assignment,
-                                                    ball_aquisition)
+                                                    ball_acquisition)
 
     # Draw output
     # Initialize Drawers
@@ -172,13 +150,16 @@ def main():
 
     ## Draw object Tracks
     output_video_frames = player_tracks_drawer.draw(video_frames,
-                                                    player_tracks,
+                                                    players,
                                                     player_assignment,
-                                                    ball_aquisition)
-    output_video_frames = ball_tracks_drawer.draw(output_video_frames, ball_tracks)
+                                                    ball_acquisition)
+
+    output_video_frames = check_for_shots(output_video_frames, ball_object, baskets)
+
+    output_video_frames = ball_tracks_drawer.draw(output_video_frames, ball_object)
 
     ## Draw KeyPoints
-    output_video_frames = court_keypoint_drawer.draw(output_video_frames, court_keypoints_per_frame)
+    output_video_frames = court_keypoint_drawer.draw(output_video_frames, court_keypoints_tracks)
 
     ## Draw Frame Number
     output_video_frames = frame_number_drawer.draw(output_video_frames)
@@ -186,7 +167,7 @@ def main():
     # Draw Team Ball Control
     output_video_frames = team_ball_control_drawer.draw(output_video_frames,
                                                         player_assignment,
-                                                        ball_aquisition)
+                                                        ball_acquisition)
 
     # Draw Passes and Interceptions
     output_video_frames = pass_and_interceptions_drawer.draw(output_video_frames,
@@ -195,7 +176,7 @@ def main():
 
     # Speed and Distance Drawer
     output_video_frames = speed_and_distance_drawer.draw(output_video_frames,
-                                                         player_tracks,
+                                                         players,
                                                          player_distances_per_frame,
                                                          player_speed_per_frame
                                                          )
@@ -208,9 +189,11 @@ def main():
                                                     tactical_view_converter.key_points,
                                                     tactical_player_positions,
                                                     player_assignment,
-                                                    ball_aquisition,
+                                                    ball_acquisition,
                                                     )
 
+    hoop_drawer = HoopTracksDrawer()
+    output_video_frames = hoop_drawer.draw(output_video_frames, baskets[0], baskets[1])
     # Save video
     print(f"Saving video file {args.output_video}")
     save_video(output_video_frames, args.output_video)

@@ -11,19 +11,6 @@ import sys
 sys.path.append('../')
 from utils import get_center_of_bbox, get_bbox_width, get_foot_position
 
-def check_for_shot(ball, basket, ball_went_upward: bool):
-    if basket.is_collision(ball.bbox):
-        scorer = ball.last_owner
-        if not scorer:
-            return
-
-        scorer.stats.record_shot(made=not ball_went_upward)
-        scorer.team.update_score(2 if not ball_went_upward else 0)
-
-        # Reset for next play
-        for player in scorer.team.players:
-            player.reset_ball_status()
-
 
 def draw_triangle(frame, bbox, color):
     """
@@ -50,62 +37,67 @@ def draw_triangle(frame, bbox, color):
 
     return frame
 
-def draw_ellipse(frame,bbox,color,track_id=None):
+import cv2
+
+def draw_ellipse(frame, bbox, color, label=None):
     """
-    Draws an ellipse and an optional rectangle with a track ID on the given frame at the specified bounding box location.
+    Draws an ellipse and an optional label on the given frame at the specified bounding box location.
 
     Args:
         frame (numpy.ndarray): The frame on which to draw the ellipse.
-        bbox (tuple): A tuple representing the bounding box (x, y, width, height).
+        bbox (tuple): A tuple (x1, y1, x2, y2) representing the bounding box.
         color (tuple): The color of the ellipse in BGR format.
-        track_id (int, optional): The track ID to display inside a rectangle. Defaults to None.
+        label (str or int, optional): The label to display inside a rectangle. Defaults to None.
 
     Returns:
-        numpy.ndarray: The frame with the ellipse and optional track ID drawn on it.
+        numpy.ndarray: The frame with the ellipse and optional label drawn on it.
     """
-    y2 = int(bbox[3])
-    x_center, _ = get_center_of_bbox(bbox)
-    print("x_center", x_center)
-    width = get_bbox_width(bbox)
+    x1, y1, x2, y2 = map(int, bbox)
+    x_center = (x1 + x2) // 2
+    y2 = int(y2)
+    width = max(1, (x2 - x1) // 2)  # Avoid zero width
 
+    # Draw the ellipse
     cv2.ellipse(
         frame,
-        center=(x_center,y2),
-        axes=(int(width), int(0.35*width)),
+        center=(x_center, y2),
+        axes=(width, int(0.35 * width)),
         angle=0.0,
         startAngle=-45,
         endAngle=235,
-        color = color,
+        color=color,
         thickness=2,
         lineType=cv2.LINE_4
     )
 
-    rectangle_width = 40
-    rectangle_height=20
-    x1_rect = x_center - rectangle_width//2
-    x2_rect = x_center + rectangle_width//2
-    y1_rect = (y2- rectangle_height//2) +15
-    y2_rect = (y2+ rectangle_height//2) +15
+    # Draw label if provided
+    if label is not None:
+        label_str = str(label)
+        font_scale = 0.6
+        thickness = 2
+        (text_width, text_height), _ = cv2.getTextSize(label_str, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
 
-    if track_id is not None:
-        cv2.rectangle(frame,
-                        (int(x1_rect),int(y1_rect) ),
-                        (int(x2_rect),int(y2_rect)),
-                        color,
-                        cv2.FILLED)
-        
-        x1_text = x1_rect+12
-        if track_id > 99:
-            x1_text -=10
-        
+        padding = 5
+        rect_w = text_width + 2 * padding
+        rect_h = text_height + 2 * padding
+
+        rect_x1 = x_center - rect_w // 2
+        rect_y1 = y2 + 15
+        rect_x2 = rect_x1 + rect_w
+        rect_y2 = rect_y1 + rect_h
+
+        # Draw filled rectangle
+        cv2.rectangle(frame, (rect_x1, rect_y1), (rect_x2, rect_y2), color, cv2.FILLED)
+
+        # Draw text
         cv2.putText(
             frame,
-            f"{track_id}",
-            (int(x1_text),int(y1_rect+15)),
+            label_str,
+            (rect_x1 + padding, rect_y2 - padding),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0,0,0),
-            2
+            font_scale,
+            (0, 0, 0),  # Black text
+            thickness
         )
 
     return frame

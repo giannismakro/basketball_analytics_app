@@ -165,53 +165,50 @@ class BallAquisitionDetector:
                 
         return -1
     
-    def detect_ball_possession(self, player_tracks, ball_tracks):
+    def detect_ball_possession(self, players, ball_object):
         """
         Detect which player has the ball in each frame based on bounding box information.
 
-        Loops through all frames, looks up ball bounding boxes and player bounding boxes,
-        and uses find_best_candidate_for_possession to determine who has the ball.
-        Requires a player to hold possession for at least min_frames consecutive frames
-        before confirming possession.
-
         Args:
-            player_tracks (list): A list of dictionaries for each frame, where each dictionary
-                maps player_id to player information including 'bbox'.
-            ball_tracks (list): A list of dictionaries for each frame, where each dictionary
-                maps ball_id to ball information including 'bbox'.
+            players (dict): Mapping from player_id (track_id) to Player objects.
+            ball_object (Ball): Ball object with bbox_per_frame data.
 
         Returns:
-            list: A list of length num_frames with the player_id who has possession,
-            or -1 if no one is determined to have possession in that frame.
+            list: A list with player_id who has possession in each frame, or -1 if none.
         """
-        num_frames = len(ball_tracks)
+        num_frames = max(ball_object.bbox_per_frame.keys()) + 1
         possession_list = [-1] * num_frames
         consecutive_possession_count = {}
-        
+
         for frame_num in range(num_frames):
-            ball_info = ball_tracks[frame_num].get(1, {})
-            if not ball_info:
+            if frame_num not in ball_object.bbox_per_frame:
                 continue
-                
-            ball_bbox = ball_info.get('bbox', [])
+
+            ball_bbox = ball_object.bbox_per_frame[frame_num]
             if not ball_bbox:
                 continue
-                
+
             ball_center = get_center_of_bbox(ball_bbox)
-            
+
+            # Build player data for this frame
+            players_in_frame = {}
+            for player_id, player_obj in players.items():
+                if frame_num in player_obj.bboxs_per_frame:
+                    players_in_frame[player_id] = player_obj
+
             best_player_id = self.find_best_candidate_for_possession(
-                ball_center, 
-                player_tracks[frame_num], 
+                ball_center,
+                players_in_frame,
                 ball_bbox
             )
 
             if best_player_id != -1:
                 number_of_consecutive_frames = consecutive_possession_count.get(best_player_id, 0) + 1
-                consecutive_possession_count = {best_player_id: number_of_consecutive_frames} 
+                consecutive_possession_count = {best_player_id: number_of_consecutive_frames}
 
-                if consecutive_possession_count[best_player_id] >= self.min_frames:
+                if number_of_consecutive_frames >= self.min_frames:
                     possession_list[frame_num] = best_player_id
             else:
-                consecutive_possession_count ={}
-    
+                consecutive_possession_count = {}
+
         return possession_list

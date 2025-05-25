@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-class PassAndInterceptionDetector():
+class PassAndInterceptionDetector:
     """
     A class that detects passes between teammates and interceptions by opposing teams.
     """

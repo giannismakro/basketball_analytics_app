@@ -8,6 +8,7 @@ class Player:
         self.team = team
         self.track_id = None
         self.bbox = None
+        self.bboxs_per_frame = {}
         self.location_history = []  # (frame_id, x, y)
         self.stats = PlayerStats()
         self.has_ball_last = False
@@ -20,9 +21,6 @@ class Player:
 
     def update_position(self, x, y, frame_id):
         self.location_history.append((frame_id, x, y))
-
-    def update_bounding_box(self, bbox):
-        self.bbox = bbox
 
     def update_stats(self, event):
         self.stats.update_from_event(event)

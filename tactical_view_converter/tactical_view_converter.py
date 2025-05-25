@@ -114,70 +114,61 @@ class TacticalViewConverter:
             
         return keypoints_list
 
-    def transform_players_to_tactical_view(self, keypoints_list, player_tracks):
+    def transform_players_to_tactical_view(self, keypoints_list, players):
         """
         Transform player positions from video frame coordinates to tactical view coordinates.
-        
+
         Args:
             keypoints_list (list): List of detected court keypoints for each frame.
-            player_tracks (list): List of dictionaries containing player tracking information for each frame,
-                where each dictionary maps player IDs to their bounding box coordinates.
-        
+            players (dict): Dictionary mapping player_id to Player objects, each with bboxs_per_frame.
+
         Returns:
-            list: List of dictionaries where each dictionary maps player IDs to their (x, y) positions
-                in the tactical view coordinate system. The list index corresponds to the frame number.
+            list: List of dictionaries mapping player IDs to (x, y) positions in tactical view,
+                  one dictionary per frame.
         """
         tactical_player_positions = []
-        
-        for frame_idx, (frame_keypoints, frame_tracks) in enumerate(zip(keypoints_list, player_tracks)):
-            # Initialize empty dictionary for this frame
+
+        num_frames = len(keypoints_list)
+
+        for frame_idx in range(num_frames):
             tactical_positions = {}
 
-            frame_keypoints = frame_keypoints.xy.tolist()[0]
-
-            # Skip frames with insufficient keypoints
-            if frame_keypoints is None or len(frame_keypoints) == 0:
+            frame_keypoints = keypoints_list[frame_idx]
+            if frame_keypoints is None:
                 tactical_player_positions.append(tactical_positions)
                 continue
-            
-            # Get detected keypoints for this frame
-            detected_keypoints = frame_keypoints
-            
-            # Filter out undetected keypoints (those with coordinates (0,0))
-            valid_indices = [i for i, kp in enumerate(detected_keypoints) if kp[0] > 0 and kp[1] > 0]
-            
-            # Need at least 4 points for a reliable homography
+
+            frame_keypoints = frame_keypoints.xy.tolist()[0]
+            valid_indices = [i for i, kp in enumerate(frame_keypoints) if kp[0] > 0 and kp[1] > 0]
+
             if len(valid_indices) < 4:
                 tactical_player_positions.append(tactical_positions)
                 continue
-            
-            # Create source and target point arrays for homography
-            source_points = np.array([detected_keypoints[i] for i in valid_indices], dtype=np.float32)
-            target_points = np.array([self.key_points[i] for i in valid_indices], dtype=np.float32)
-            
-            try:
-                # Create homography transformer
-                homography = Homography(source_points, target_points)
-                
-                # Transform each player's position
-                for player_id, player_obj in frame_tracks.items():
-                    bbox = player_obj.bbox
-                    # Use bottom center of bounding box as player position
-                    player_position = np.array([get_foot_position(bbox)])
-                    # Transform to tactical view coordinates
-                    tactical_position = homography.transform_points(player_position)
 
-                    # If tactical position is not in the tactical view, skip
-                    if tactical_position[0][0] < 0 or tactical_position[0][0] > self.width or tactical_position[0][1] < 0 or tactical_position[0][1] > self.height:
+            source_points = np.array([frame_keypoints[i] for i in valid_indices], dtype=np.float32)
+            target_points = np.array([self.key_points[i] for i in valid_indices], dtype=np.float32)
+
+            try:
+                homography = Homography(source_points, target_points)
+
+                # Loop over all players to get their bbox for this frame
+                for player_id, player_obj in players.items():
+                    if frame_idx not in player_obj.bboxs_per_frame:
                         continue
 
-                    tactical_positions[player_id] = tactical_position[0].tolist()
-                    
-            except (ValueError, cv2.error) as e:
-                # If homography fails, continue with empty dictionary
+                    bbox = player_obj.bboxs_per_frame[frame_idx]
+                    player_position = np.array([get_foot_position(bbox)])
+                    tactical_position = homography.transform_points(player_position)
+
+                    x, y = tactical_position[0]
+                    if 0 <= x <= self.width and 0 <= y <= self.height:
+                        tactical_positions[player_id] = [x, y]
+
+            except (ValueError, cv2.error):
+                # Homography failed; skip this frame
                 pass
-            
+
             tactical_player_positions.append(tactical_positions)
-        
+
         return tactical_player_positions
 
