@@ -2,7 +2,7 @@ import sys
 sys.path.append('../')
 from utils.bbox_utils import measure_distance, get_center_of_bbox
 
-class BallAquisitionDetector:
+class BallAcquisitionDetector:
     """
     Detects ball acquisition by players in a basketball game.
 
@@ -14,7 +14,7 @@ class BallAquisitionDetector:
 
     def __init__(self):
         """
-        Initialize the BallAquisitionDetector with default thresholds.
+        Initialize the BallAcquisitionDetector with default thresholds.
 
         Attributes:
             possession_threshold (int): Maximum distance (in pixels) at which
@@ -27,6 +27,7 @@ class BallAquisitionDetector:
         self.possession_threshold = 50
         self.min_frames = 11
         self.containment_threshold = 0.8
+        self.possession_list = []
         
     def get_key_basketball_player_assignment_points(self, player_bbox,ball_center):
         """
@@ -177,7 +178,7 @@ class BallAquisitionDetector:
             list: A list with player_id who has possession in each frame, or -1 if none.
         """
         num_frames = max(ball_object.bbox_per_frame.keys()) + 1
-        possession_list = [-1] * num_frames
+        self.possession_list = [-1] * num_frames
         consecutive_possession_count = {}
 
         for frame_num in range(num_frames):
@@ -207,8 +208,8 @@ class BallAquisitionDetector:
                 consecutive_possession_count = {best_player_id: number_of_consecutive_frames}
 
                 if number_of_consecutive_frames >= self.min_frames:
-                    possession_list[frame_num] = best_player_id
+                    self.possession_list[frame_num] = best_player_id
             else:
                 consecutive_possession_count = {}
 
-        return possession_list
+        return self.possession_list

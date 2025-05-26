@@ -6,3 +6,4 @@ scikit-learn
 deep_sort_realtime
 supervision
 transformers
+reportlab

@@ -13,6 +13,7 @@ class Player:
         self.stats = PlayerStats()
         self.has_ball_last = False
 
+
     def reset_ball_status(self):
         self.has_ball_last = False
 
@@ -29,31 +30,6 @@ class Player:
         if self.location_history:
             return self.location_history[-1][1:]
         return None
-
-    def to_dict(self):
-        return {
-            "player_id": self.player_id,
-            "name": self.name,
-            "team": self.team,
-            "position": self.position,
-            "track_id": self.track_id,
-            "bbox": self.bbox,
-            "stats": self.stats.to_dict(),
-        }
-
-    @classmethod
-    def from_dict(cls, d):
-        # Adjust field names as appropriate for your Player class
-        player = cls(
-            player_id=d.get("player_id"),
-            name=d.get("name"),
-            position=d.get("position"),
-            team=d.get("team")
-        )
-        player.track_id = d.get("track_id")
-        player.bbox = d.get("bbox")
-        # Add any other fields you need to restore
-        return player
 
     def __str__(self):
         return f"Player({self.name}, ID={self.player_id})"

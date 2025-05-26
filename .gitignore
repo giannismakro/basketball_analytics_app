@@ -4,3 +4,5 @@ input/
 __pychache__/*
 **/__pycache__/
 models/*.pt
+output_videos/
+output/*

@@ -54,18 +54,47 @@ def save_video(ouput_video_frames,output_video_path):
     out.release()
 
 
-import cv2
 
-def check_for_shots(video_frames, ball_object, baskets):
+def check_for_shots(video_frames, ball_object, baskets, possession_list, players):
     output_video_frames = []
     for frame_idx in range(len(video_frames)):
         frame = video_frames[frame_idx]
-        frame = check_for_shot(ball_object, baskets, frame_idx, frame)
+        frame = check_for_shot(ball_object, baskets, frame_idx, frame, possession_list, players)
         output_video_frames.append(frame)
     return  output_video_frames
 
 
-def check_for_shot(ball, hoops, frame_idx, video_frame):
+def update_player_stats(possession_list, players, result, frame_idx):
+    """
+    Update stats for the player who last had possession at the given frame.
+
+    Args:
+        possession_list (list): List of player IDs who had possession per frame.
+        players (dict): Dictionary mapping player_id to Player objects.
+        result (str): Either "Shot Made" or "Shot Missed".
+        frame_idx (int): The current frame index to look up possession.
+    """
+    if frame_idx >= len(possession_list):
+        return
+
+    player_id = possession_list[frame_idx]
+
+    if player_id == -1:
+        return  # No possession found
+
+    player = players.get(player_id)
+
+    if player is None:
+        assert False, "Invalid player"
+
+    # Update stats
+    player.stats["field_goals_attempted"] += 1
+    if result.lower() == "shot made":
+        player.stats["field_goals_made"] += 1
+        player.stats["points"] += 2  # or 3 if you have distance logic
+
+
+def check_for_shot(ball, hoops, frame_idx, video_frame, possession_list, players):
     shot_display_duration = 30  # frames to show text
 
     if ball.shot_display_frames_remaining > 0:
@@ -108,6 +137,8 @@ def check_for_shot(ball, hoops, frame_idx, video_frame):
         text_y = int(frame_height * 0.50)  # 25% down the screen
         cv2.putText(video_frame, result, (100, text_y), cv2.FONT_HERSHEY_SIMPLEX,
                     5.0, color, 4)
+
+        update_player_stats(possession_list, players, result, frame_idx)
         break
 
     return video_frame

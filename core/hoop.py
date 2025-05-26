@@ -21,13 +21,13 @@ class Hoop:
         hoop_bbox = self.get_bbox(frame_idx)
         ball_center = ball.get_center(frame_idx)
         if hoop_bbox is None or ball_center is None:
-            print("Returning false")
+            #print("Returning false")
             return False
 
         hx1, hy1, hx2, hy2 = hoop_bbox
         bx, by = ball_center
-        if hx1 <= bx <= hx2 or hy1 <= by <= hy2:
-            print("KARAMMMMMMMMMMMReturning true")
+        #if hx1 <= bx <= hx2 or hy1 <= by <= hy2:
+        #    print("KARAMMMMMMMMMMMReturning true")
         #else:
         #    print(f"!!!!!Karammmm Returning false {(hx1 <= bx <= hx2)} and {(hy1 <= by <= hy2)}")
         return hx1 <= bx <= hx2 or hy1 <= by <= hy2
@@ -46,5 +46,5 @@ class Hoop:
 
         x, y = ball_center
         ellipse_value = ((x - h) ** 2) / (a ** 2) + ((y - k) ** 2) / (b ** 2)
-        print(f"Ellipse value: {ellipse_value}")
+        #print(f"Ellipse value: {ellipse_value}")
         return ellipse_value <= 100.0

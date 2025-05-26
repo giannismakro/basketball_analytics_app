@@ -13,7 +13,7 @@ from torch.nn.modules.activation import SiLU
 from torch.nn.modules.pooling import MaxPool2d
 from torch.nn.modules.upsampling import Upsample
 from team_assigner import TeamAssigner
-from ball_aquisition import BallAquisitionDetector
+from ball_aquisition import BallAcquisitionDetector
 from pass_and_interception_detector import PassAndInterceptionDetector
 from tactical_view_converter import TacticalViewConverter
 from speed_and_distance_calculator import SpeedAndDistanceCalculator
@@ -30,7 +30,7 @@ from drawers import (
     SpeedAndDistanceDrawer,
     HoopTracksDrawer
 )
-
+from utils.report_generator import generate_game_summary_pdf
 from configs import(
     STUBS_DEFAULT_PATH,
     HOOP_DETECTOR_PATH,
@@ -107,13 +107,10 @@ def main():
 
     # Ball Acquisition
     print("Ball acquisition")
-    ball_acquisition = BallAquisitionDetector().detect_ball_possession(players, ball_object)
-
-
-    # Detect Passes
+    possession_list = BallAcquisitionDetector().detect_ball_possession(players, ball_object)
     pass_and_interception_detector = PassAndInterceptionDetector()
-    passes = pass_and_interception_detector.detect_passes(ball_acquisition,player_assignment)
-    interceptions = pass_and_interception_detector.detect_interceptions(ball_acquisition,player_assignment)
+    passes = pass_and_interception_detector.detect_passes(possession_list,player_assignment)
+    interceptions = pass_and_interception_detector.detect_interceptions(possession_list,player_assignment)
 
     # Detect Passes
     # Tactical View
@@ -135,7 +132,7 @@ def main():
     output_video_frames = player_tracks_drawer.draw(video_frames,
                                                     players,
                                                     player_assignment,
-                                                    ball_acquisition)
+                                                    possession_list)
 
     # Draw output
     # Initialize Drawers
@@ -152,9 +149,9 @@ def main():
     output_video_frames = player_tracks_drawer.draw(video_frames,
                                                     players,
                                                     player_assignment,
-                                                    ball_acquisition)
+                                                    possession_list)
 
-    output_video_frames = check_for_shots(output_video_frames, ball_object, baskets)
+    output_video_frames = check_for_shots(output_video_frames, ball_object, baskets, possession_list, players)
 
     output_video_frames = ball_tracks_drawer.draw(output_video_frames, ball_object)
 
@@ -167,7 +164,7 @@ def main():
     # Draw Team Ball Control
     output_video_frames = team_ball_control_drawer.draw(output_video_frames,
                                                         player_assignment,
-                                                        ball_acquisition)
+                                                        possession_list)
 
     # Draw Passes and Interceptions
     output_video_frames = pass_and_interceptions_drawer.draw(output_video_frames,
@@ -189,7 +186,7 @@ def main():
                                                     tactical_view_converter.key_points,
                                                     tactical_player_positions,
                                                     player_assignment,
-                                                    ball_acquisition,
+                                                    possession_list,
                                                     )
 
     hoop_drawer = HoopTracksDrawer()
@@ -197,6 +194,7 @@ def main():
     # Save video
     print(f"Saving video file {args.output_video}")
     save_video(output_video_frames, args.output_video)
+    generate_game_summary_pdf("output/game_summary.pdf", teams=[team1, team2], players=players)
 
 
 if __name__ == '__main__':
